@@ -33,6 +33,28 @@ I designed and developed this project to showcase my creative coding skills and 
 - **JavaScript (ES6)**
 - **heart.js (Main Animation Logic)**
 
+## 🌐 Connect With Me
+
+* 🐙 **GitHub**: [https://github.com/MannPrajapati-Git](https://github.com/MannPrajapati-Git)  
+* 💼 **LinkedIn**: [https://www.linkedin.com/in/prajapatimann2502](https://www.linkedin.com/in/prajapatimann2502)  
+* 📸 **Instagram**: [https://www.instagram.com/mannprajapati.ai](https://www.instagram.com/mannprajapati.ai)  
+* ✉️ **Email**: [mannprajapati2502@gmail.com](mailto:mannprajapati2502@gmail.com)  
+
+---
+
+## ⭐ Support
+
+If you like this project:
+
+- Star ⭐ the repository  
+- Fork 🍴 it  
+- Share 💖 with others  
+
+---
+
+## 📜 License
+
+Free to use for educational and personal projects.
 ---
 
 ## 🚀 How To Run
