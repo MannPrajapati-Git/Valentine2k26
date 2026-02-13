@@ -1,0 +1,271 @@
+.<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Happy Valentine's Day</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Lato&display=swap" rel="stylesheet">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100vh; overflow: hidden; background-color: black; }
+    canvas { position: fixed; top: 0; left: 0; z-index: 1; outline: none; }
+
+    #message {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Great Vibes', cursive;
+      font-size: 5rem;
+      color: #fff;
+      text-shadow: 2px 2px 4px rgba(255, 0, 0, 0.612), 0 0 20px rgb(255, 0, 174);
+      z-index: 10; opacity: 0; transition: opacity 3s ease-in-out;
+      pointer-events: none; text-align: center; width: 100%;
+    }
+    @media (max-width: 768px) { #message { font-size: 3rem; } }
+  </style>
+</head>
+<body>
+
+  <div id="message">Happy Valentine's Day</div>
+
+  <script type="importmap">
+    {
+      "imports": {      
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
+
+    let camera, scene, renderer, controls;
+    let heartMesh;
+    let allVertices = [];
+    
+    // Rain variables
+    let fallingHearts = [];
+    let heartGeometryClone = null;
+
+    // === CHANGE 1: Enable Vertex Colors for Rain ===
+    const rainMaterial = new THREE.MeshBasicMaterial({ 
+      vertexColors: true, // IMPORTANT: Allows gradient
+      wireframe: true,
+      transparent: true,
+      opacity: 0.4
+    });
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.01);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 40);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.maxDistance = 60;
+    controls.minDistance = 20;
+
+    const bottomX = -5;
+    const curvePath = new THREE.CurvePath();
+
+    curvePath.add(new THREE.CubicBezierCurve(
+      new THREE.Vector2(0, -5), new THREE.Vector2(0, -5),
+      new THREE.Vector2(-1, -9), new THREE.Vector2(bottomX, -9)
+    ));
+    curvePath.add(new THREE.CubicBezierCurve(
+      new THREE.Vector2(bottomX, -9), new THREE.Vector2(-11, -9),
+      new THREE.Vector2(-11, -3), new THREE.Vector2(-11, -3)
+    ));
+    curvePath.add(new THREE.CubicBezierCurve(
+      new THREE.Vector2(-11, -3), new THREE.Vector2(-11, 1),
+      new THREE.Vector2(-7, 5.4), new THREE.Vector2(0, 9)
+    ));
+
+    const curvePoints2D = [];
+    for (let i = 0; i < 25; i++) {
+      curvePoints2D.push(curvePath.getPointAt(i / 24));
+    }
+
+    function erf(x) {
+      const sign = x < 0 ? -1 : 1;
+      x = Math.abs(x);
+      const a = 1 / (1 + 0.3275911 * x);
+      return sign * (1 - ((((1.061405429 * a - 1.453152027) * a + 1.421413741) * a - 0.284496736) * a + 0.254829592) * a * Math.exp(-x * x));
+    }
+
+    function gaussianDistribution(value, min, max, minVal, maxVal) {
+      if (value <= -2 || value >= 2) return 0;
+      const normalized = ((value - min) / (max - min)) * 2 - 1;
+      const erfValue = erf(3 * normalized);
+      return ((erfValue + 1) / 2) * (maxVal - minVal) + minVal;
+    }
+
+    curvePoints2D.forEach((point) => {
+      const start = new THREE.Vector2(0, 0);
+      const end = new THREE.Vector2(point.x.toFixed(2), point.y.toFixed(2));
+      for (let i = 0; i <= 8; i++) { 
+        const t = i / 8;
+        const x = start.x + (end.x - start.x) * t;
+        const y = start.y + (end.y - start.y) * t;
+        const z = gaussianDistribution(t, 0, 2, -2, 5) - 2.5;
+        allVertices.push(new THREE.Vector3(x, y, z));
+        allVertices.push(new THREE.Vector3(x, y, -z));
+      }
+    });
+
+    function mirrorGeometry(geom) {
+      const cloned = geom.clone().toNonIndexed();
+      const positions = cloned.getAttribute("position").array;
+      const mirrored = [];
+      for (let i = 0; i < positions.length; i += 3) mirrored.push(positions[i], positions[i+1], positions[i+2]);
+      for (let i = 0; i < positions.length; i += 9) {
+        const v1 = [-positions[i], positions[i+1], positions[i+2]];
+        const v2 = [-positions[i+3], positions[i+4], positions[i+5]];
+        const v3 = [-positions[i+6], positions[i+7], positions[i+8]];
+        mirrored.push(...v1, ...v3, ...v2); 
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(mirrored, 3));
+      return geometry;
+    }
+
+    // === CHANGE 2: Helper Function to Apply Gradient ===
+    function applyGradientColor(geometry) {
+      geometry.computeBoundingBox();
+      const minY = geometry.boundingBox.min.y;
+      const maxY = geometry.boundingBox.max.y;
+      
+      // Define Gradient Colors
+      const colorBottom = new THREE.Color(0xff0065); // Purple/Deep Red at bottom
+      const colorTop = new THREE.Color(0xff0000);    // Bright Neon Pink/Red at top
+      
+      const colors = [];
+      const posAttribute = geometry.getAttribute('position');
+      const count = posAttribute.count;
+      
+      for(let i = 0; i < count; i++) {
+         const y = posAttribute.getY(i);
+         // 0 to 1 based on height
+         const alpha = (y - minY) / (maxY - minY); 
+         
+         // Mix colors
+         const color = colorBottom.clone().lerp(colorTop, alpha);
+         colors.push(color.r, color.g, color.b);
+      }
+      
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    }
+
+    function createRainDrop() {
+      if(!heartGeometryClone) return;
+
+      const mesh = new THREE.Mesh(heartGeometryClone, rainMaterial);
+      const xPos = (Math.random() - 0.5) * 120; 
+      const zPos = (Math.random() - 0.5) * 100; 
+      const yPos = 40 + Math.random() * 20;
+      
+      mesh.position.set(xPos, yPos, zPos); 
+      mesh.rotation.z = Math.PI + (Math.random() - 0.5) * 0.5;
+      mesh.rotation.y = Math.random() * Math.PI * 2; 
+
+      const s = 0.05 + Math.random() * 0.15;
+      mesh.scale.set(s, s, s);
+
+      mesh.userData = {
+        speed: 0.1 + Math.random() * 0.2,
+        rotSpeed: (Math.random() - 0.5) * 0.02
+      };
+
+      scene.add(mesh);
+      fallingHearts.push(mesh);
+    }
+
+    function updateRain() {
+      if (fallingHearts.length < 250) { 
+         createRainDrop();
+      }
+      for (let i = fallingHearts.length - 1; i >= 0; i--) {
+        const h = fallingHearts[i];
+        h.position.y -= h.userData.speed;
+        h.rotation.y += h.userData.rotSpeed;
+        if (h.position.y < -40) {
+          scene.remove(h);
+          fallingHearts.splice(i, 1);
+        }
+      }
+    }
+
+    let progress = 0;
+    const speed = 0.003;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      if (progress < 1) {
+        progress += speed;
+        const count = Math.floor(progress * allVertices.length);
+        
+        if (count >= 4) {
+          if (heartMesh) {
+            heartMesh.geometry.dispose();
+            scene.remove(heartMesh);
+          }
+          
+          const currentVerts = allVertices.slice(0, count);
+          let geo = new ConvexGeometry(currentVerts);
+          geo = mirrorGeometry(geo);
+          geo.computeVertexNormals();
+          
+          // === CHANGE 3: Apply the Gradient to current geometry ===
+          applyGradientColor(geo);
+          
+          // === CHANGE 4: Use vertexColors: true ===
+          heartMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ 
+            vertexColors: true, // Use the gradient created above
+            wireframe: true 
+          }));
+          
+          heartMesh.rotation.z = Math.PI;
+          scene.add(heartMesh);
+
+          if (progress >= 1) {
+            heartGeometryClone = geo.clone();
+            document.getElementById('message').style.opacity = 1;
+          }
+        }
+      } 
+      else {
+        updateRain();
+        if(heartMesh) {
+            heartMesh.rotation.y = Math.sin(Date.now() * 0.001) * 0.1;
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
